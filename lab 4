@@ -1,0 +1,283 @@
+# Candidate Elimination Algorithm
+# Dataset: EnjoySport
+
+# Training data
+training_data = [
+    (["Sunny", "Warm", "Normal", "Strong"], "Yes"),  # D1
+    (["Sunny", "Warm", "High", "Strong"], "Yes"),    # D2
+    (["Rainy", "Cold", "High", "Strong"], "No"),     # D3
+    (["Sunny", "Warm", "High", "Weak"], "Yes")       # D4
+]
+
+attributes = ["Sky", "AirTemp", "Humidity", "Wind"]
+
+# Special symbols
+# '?' = any value
+# 'Ø' = no value / most specific
+ANY = "?"
+NULL = "Ø"
+
+
+def covers(hypothesis, instance):
+    """
+    Returns True if the hypothesis covers the given instance.
+    """
+    for h, x in zip(hypothesis, instance):
+        if h == NULL:
+            return False
+        if h != ANY and h != x:
+            return False
+    return True
+
+
+def more_general_or_equal(h1, h2):
+    """
+    Returns True if h1 is at least as general as h2.
+    """
+    for a, b in zip(h1, h2):
+
+        if a == ANY:
+            continue
+
+        if a == NULL:
+            if b != NULL:
+                return False
+
+        elif b == NULL:
+            continue
+
+        elif a != b:
+            return False
+
+    return True
+
+
+def minimal_generalization(s, instance):
+    """
+    Minimal generalization of hypothesis s
+    so that it covers the positive instance.
+    """
+    new_s = s.copy()
+
+    for i in range(len(s)):
+        if s[i] == NULL:
+            new_s[i] = instance[i]
+
+        elif s[i] != instance[i]:
+            new_s[i] = ANY
+
+    return new_s
+
+
+def minimal_specializations(g, instance, domains, S):
+    """
+    Generate minimal specializations of g
+    that exclude the negative instance.
+    """
+    specializations = []
+
+    for i in range(len(g)):
+
+        # Only specialize attributes that are '?'
+        if g[i] == ANY:
+
+            for value in domains[i]:
+
+                # Do not create a specialization that
+                # is more specific than an S hypothesis.
+                new_g = g.copy()
+                new_g[i] = value
+
+                if covers(new_g, instance):
+                    continue
+
+                # It should be at least as general as
+                # some member of S.
+                valid = False
+
+                for s in S:
+                    if more_general_or_equal(new_g, s):
+                        valid = True
+                        break
+
+                if valid:
+                    specializations.append(new_g)
+
+    return specializations
+
+
+def remove_duplicates(hypotheses):
+    """
+    Remove duplicate hypotheses.
+    """
+    result = []
+
+    for h in hypotheses:
+        if h not in result:
+            result.append(h)
+
+    return result
+
+
+def format_hypothesis(h):
+    """
+    Format a hypothesis for printing.
+    """
+    return "<" + ", ".join(h) + ">"
+
+
+# ---------------------------------------------------------
+# Initialize domains
+# ---------------------------------------------------------
+
+domains = []
+
+for i in range(len(attributes)):
+    values = set()
+
+    for instance, target in training_data:
+        values.add(instance[i])
+
+    domains.append(sorted(values))
+
+
+# ---------------------------------------------------------
+# Initialize S and G
+# ---------------------------------------------------------
+
+# Most Specific Boundary
+S = [[NULL, NULL, NULL, NULL]]
+
+# Most General Boundary
+G = [[ANY, ANY, ANY, ANY]]
+
+
+# ---------------------------------------------------------
+# Candidate Elimination Algorithm
+# ---------------------------------------------------------
+
+print("=" * 70)
+print("CANDIDATE ELIMINATION ALGORITHM")
+print("=" * 70)
+
+print("\nAttributes:")
+print(attributes)
+
+print("\nInitial Most Specific Boundary (S):")
+for h in S:
+    print(format_hypothesis(h))
+
+print("\nInitial Most General Boundary (G):")
+for h in G:
+    print(format_hypothesis(h))
+
+
+# Process each training instance
+for step, (instance, target) in enumerate(training_data, start=1):
+
+    print("\n" + "-" * 70)
+    print(f"Processing D{step}: {instance} -> {target}")
+    print("-" * 70)
+
+    if target == "Yes":
+
+        # -------------------------------------------------
+        # POSITIVE INSTANCE
+        # -------------------------------------------------
+
+        # Remove G hypotheses that do not cover the instance
+        G = [g for g in G if covers(g, instance)]
+
+        new_S = []
+
+        for s in S:
+
+            if covers(s, instance):
+                new_S.append(s)
+
+            else:
+                # Generalize S minimally
+                generalized = minimal_generalization(s, instance)
+
+                # Keep it only if some G hypothesis is
+                # at least as general as it
+                valid = False
+
+                for g in G:
+                    if more_general_or_equal(g, generalized):
+                        valid = True
+                        break
+
+                if valid:
+                    new_S.append(generalized)
+
+        S = remove_duplicates(new_S)
+
+    else:
+
+        # -------------------------------------------------
+        # NEGATIVE INSTANCE
+        # -------------------------------------------------
+
+        # Remove S hypotheses that cover the negative instance
+        S = [s for s in S if not covers(s, instance)]
+
+        new_G = []
+
+        for g in G:
+
+            if not covers(g, instance):
+                new_G.append(g)
+
+            else:
+                # Specialize G minimally
+                specializations = minimal_specializations(
+                    g, instance, domains, S
+                )
+
+                new_G.extend(specializations)
+
+        G = remove_duplicates(new_G)
+
+    # -----------------------------------------------------
+    # Print boundaries after current instance
+    # -----------------------------------------------------
+
+    print("\nS (Most Specific Boundary):")
+
+    if S:
+        for h in S:
+            print("  ", format_hypothesis(h))
+    else:
+        print("   {}")
+
+    print("\nG (Most General Boundary):")
+
+    if G:
+        for h in G:
+            print("  ", format_hypothesis(h))
+    else:
+        print("   {}")
+
+
+# ---------------------------------------------------------
+# Final Version Space
+# ---------------------------------------------------------
+
+print("\n" + "=" * 70)
+print("FINAL VERSION SPACE BOUNDARIES")
+print("=" * 70)
+
+print("\nFinal S (Most Specific Boundary):")
+
+for h in S:
+    print("  ", format_hypothesis(h))
+
+print("\nFinal G (Most General Boundary):")
+
+for h in G:
+    print("  ", format_hypothesis(h))
+
+print("\n" + "=" * 70)
+print("Algorithm execution completed.")
+print("=" * 70)
